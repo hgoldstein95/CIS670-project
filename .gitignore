@@ -1,0 +1,8 @@
+proposal/*.aux
+proposal/*.pdf
+proposal/*.fls
+proposal/*.log
+proposal/*.out
+proposal/*.synctex.gz
+proposal/*.fdb_latexmk
+.vscode
