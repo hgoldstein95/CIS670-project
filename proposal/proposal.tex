@@ -28,10 +28,43 @@
 
 \section{Overview}
 
-\section{Learning Goals}
+For our CIS 670 project, we plan to implement a very simple Database Management System (DBMS) in
+Rust. Our main goal is to learn about Rust and its type system, paying special
+attention to the way that affine types provide protection against memory corruption and data
+races.
 
-\section{Minimum Viable Product}
+We think that a implementing DBMS is a perfect way to explore Rust: many internal database
+operations are both memory-bound and readily parallelized, which means there is lots of surface
+area for bugs that Rust is uniquely equipped to prevent. In addition, DBMS systems are extremely
+extensible. There are endless features and optimizations that can be added to build on a minimum
+implementation. If we find that our base implementation is too simple (or if we realize that we
+haven't gotten to use particularly fun Rust features) we can choose to extend the project on the
+fly.
 
-\section{Potential Extensions}
+At the end of the project, we hope to have a clear picture of exactly what Rust's type system does
+well (and where it might fall short).
+
+\section{Project Specifics}
+
+Our minimum viable product will include
+\begin{itemize}
+  \item a parser for a simple subset of SQL;
+  \item a basic query planner that interprets a SQL query in relational algebra;
+  \item an interpreter for query plans that operates on CSV files; and
+  \item a simple command-line interface.
+\end{itemize}
+
+We anticipate that our minimum viable product will be a bit {\em too} minimal. This is where
+things get fun. We hope to implement some or all of the following extensions:
+\begin{itemize}
+  \item Parallel algorithms for implementing certain kinds of queries
+  \item A streaming interface for files that are too large to hold in memory
+  \item Networking capabilities for remote queries
+  \item A binary table format that is more compact than CSV
+  \item Query optimizations based on relational algebra
+  \item Table indexes (e.g. B+ tree)
+  \item Transactions
+\end{itemize}
+If you have a sense for which of these additions you'd like to see, please let us know.
 
 \end{document}
