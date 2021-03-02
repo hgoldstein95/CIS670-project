@@ -19,7 +19,7 @@
 
 \title{CIS 670 Project Proposal: Mini-DBMS in Rust}
 
-\author{Harrison Goldstein}
+\author{Harry Goldstein}
 \author{Lucas Silver}
 
 \begin{document}
@@ -34,9 +34,9 @@ attention to the way that affine types provide protection against memory corrupt
 races.
 
 We think that a implementing DBMS is a perfect way to explore Rust: many internal database
-operations are both memory-bound and readily parallelized, which means there is lots of surface
-area for bugs that Rust is uniquely equipped to prevent. In addition, DBMS systems are extremely
-extensible. There are endless features and optimizations that can be added to build on a minimum
+operations are both memory-bound and readily parallelized, which means there is plenty of surface
+area for bugs that Rust is uniquely equipped to prevent. In addition, a DBMS is extremely
+modular. There are endless features and optimizations that can be added to build on a minimum
 implementation. If we find that our base implementation is too simple (or if we realize that we
 haven't gotten to use particularly fun Rust features) we can choose to extend the project on the
 fly.
