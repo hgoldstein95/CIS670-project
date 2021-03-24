@@ -2,9 +2,12 @@
 
 use crate::ast::*;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag, tag_no_case};
+use nom::bytes::complete::escaped;
+use nom::bytes::complete::is_not;
+use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::*;
 use nom::combinator::map;
+use nom::combinator::opt;
 use nom::error::{context, VerboseError};
 use nom::multi::fold_many0;
 use nom::multi::separated_list1;
@@ -24,7 +27,14 @@ fn ident(input: &str) -> Res<&str, String> {
   )(input)
 }
 
-fn pbool(input: &str) -> Res<&str, bool> {
+fn p_int(input: &str) -> Res<&str, i64> {
+  let (input, s) = opt(tag("-"))(input)?;
+  let (input, ds) = digit1(input)?;
+  let n = ds.parse::<i64>().expect("failed to parse difits");
+  Ok((input, if s.is_some() { -n } else { n }))
+}
+
+fn p_bool(input: &str) -> Res<&str, bool> {
   context(
     "bool",
     alt((
@@ -34,10 +44,20 @@ fn pbool(input: &str) -> Res<&str, bool> {
   )(input)
 }
 
-fn pstring(input: &str) -> Res<&str, String> {
+fn p_string(input: &str) -> Res<&str, String> {
   context(
     "string",
-    map(delimited(char('"'), is_not("\""), char('"')), String::from),
+    alt((
+      map(tag("\"\""), |_| "".to_owned()),
+      map(
+        delimited(
+          char('"'),
+          escaped(is_not("\""), '\\', one_of(r#""n\"#)),
+          char('"'),
+        ),
+        String::from,
+      ),
+    )),
   )(input)
 }
 
@@ -54,9 +74,9 @@ fn factor(input: &str) -> Res<&str, Filter> {
     alt((
       delimited(char('('), expression, char(')')),
       not,
-      map(digit1, |x: &str| Filter::LitI(x.parse::<i64>().unwrap())),
-      map(pbool, Filter::LitB),
-      map(pstring, Filter::LitS),
+      map(p_int, Filter::LitI),
+      map(p_bool, Filter::LitB),
+      map(p_string, Filter::LitS),
       map(ident, Filter::Id),
     )),
   )(input)
@@ -135,7 +155,19 @@ fn query(input: &str) -> Res<&str, Query> {
 
 #[cfg(test)]
 mod tests {
+
   use super::*;
+
+  #[quickcheck]
+  fn prop_round_trip(f: Filter) -> bool {
+    f == expression(&format!("{}", f)).unwrap().1
+  }
+
+  #[test]
+  fn strings_work() {
+    assert_eq!(p_string("\"foo\""), Ok(("", "foo".to_owned())));
+    assert_eq!(p_string("\"\""), Ok(("", "".to_owned())));
+  }
 
   #[test]
   fn whole_query() {
