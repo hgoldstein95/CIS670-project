@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
 use std::fmt;
@@ -9,9 +7,9 @@ pub type Table = String;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Query {
-  selection: Selection,
-  tables: Vec<Table>,
-  filter: Filter,
+  pub selection: Selection,
+  pub tables: Vec<Table>,
+  pub filter: Filter,
 }
 
 impl Query {
@@ -21,6 +19,18 @@ impl Query {
       tables: t,
       filter: f,
     }
+  }
+}
+
+impl fmt::Display for Query {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(
+      f,
+      "SELECT {}\nFROM {}\nWHERE {}",
+      self.selection,
+      self.tables.join(", "),
+      self.filter
+    )
   }
 }
 
@@ -38,6 +48,15 @@ impl Arbitrary for Query {
 pub enum Selection {
   Star,
   Columns(Vec<Ident>),
+}
+
+impl fmt::Display for Selection {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      Selection::Star => write!(f, "*"),
+      Selection::Columns(ts) => write!(f, "{}", ts.join(", ")),
+    }
+  }
 }
 
 impl Arbitrary for Selection {

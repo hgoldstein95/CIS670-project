@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::ast::*;
 use nom::branch::alt;
 use nom::bytes::complete::escaped;
@@ -15,6 +13,13 @@ use nom::sequence::pair;
 use nom::sequence::terminated;
 use nom::sequence::{delimited, tuple};
 use nom::IResult;
+
+pub fn parse_sql(input: &str) -> Result<Query, String> {
+  match query(input) {
+    Ok((_, q)) => Ok(q),
+    Err(p) => Err(format!("parsing failed: {}", p)),
+  }
+}
 
 type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
