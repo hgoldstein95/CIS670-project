@@ -186,22 +186,28 @@ fn table(input: &str) -> Res<&str, Table> {
 fn query(input: &str) -> Res<&str, Query> {
   let (input, _) = tag_no_case("SELECT")(input)?;
   let (input, _) = multispace1(input)?;
-  let (input, s) = selection(input)?;
+  let (input, selection) = selection(input)?;
   let (input, _) = multispace1(input)?;
   let (input, _) = tag_no_case("FROM")(input)?;
   let (input, _) = multispace1(input)?;
-  let (input, t) = separated_list1(terminated(tag(","), space0), table)(input)?;
+  let (input, tables) = separated_list1(terminated(tag(","), space0), table)(input)?;
   let (input, _) = multispace1(input)?;
   let (input, _) = tag_no_case("WHERE")(input)?;
   let (input, _) = space1(input)?;
-  let (input, f) = expression(input)?;
+  let (input, filter) = expression(input)?;
 
-  Ok((input, Query::new(s, t, f)))
+  Ok((
+    input,
+    Query {
+      selection,
+      tables,
+      filter,
+    },
+  ))
 }
 
 #[cfg(test)]
 mod tests {
-
   use super::*;
 
   #[quickcheck]
@@ -221,8 +227,8 @@ mod tests {
       query("SELECT name, id\nFROM users\nWHERE name == \"Harry\""),
       Ok((
         "",
-        Query::new(
-          Selection::Columns(vec![
+        Query {
+          selection: Selection::Columns(vec![
             ColumnSelector {
               table: None,
               field: "name".to_owned()
@@ -232,11 +238,11 @@ mod tests {
               field: "id".to_owned()
             },
           ]),
-          vec![Table {
+          tables: vec![Table {
             table_name: "users".to_owned(),
             alias: None
           }],
-          Filter::BinaryOp(
+          filter: Filter::BinaryOp(
             BinaryOp::Eq,
             Box::new(Filter::Id(ColumnSelector {
               table: None,
@@ -244,7 +250,7 @@ mod tests {
             })),
             Box::new(Filter::LitS("Harry".to_owned()))
           )
-        )
+        }
       ))
     )
   }
