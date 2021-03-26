@@ -3,7 +3,72 @@ use quickcheck::Gen;
 use std::fmt;
 
 pub type Ident = String;
-pub type Table = String;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ColumnSelector {
+  pub table: Option<Ident>,
+  pub field: Ident,
+}
+
+impl fmt::Display for ColumnSelector {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(
+      f,
+      "{}{}",
+      match &self.table {
+        None => "".to_owned(),
+        Some(x) => format!("{}.", x),
+      },
+      self.field
+    )
+  }
+}
+
+impl Arbitrary for ColumnSelector {
+  fn arbitrary(g: &mut Gen) -> Self {
+    ColumnSelector {
+      table: if bool::arbitrary(g) {
+        None
+      } else {
+        Some(gen_ident(g))
+      },
+      field: gen_ident(g),
+    }
+  }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Table {
+  pub table_name: Ident,
+  pub alias: Option<Ident>,
+}
+
+impl fmt::Display for Table {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(
+      f,
+      "{}{}",
+      self.table_name,
+      match &self.alias {
+        None => "".to_owned(),
+        Some(x) => format!(" AS {}", x),
+      }
+    )
+  }
+}
+
+impl Arbitrary for Table {
+  fn arbitrary(g: &mut Gen) -> Self {
+    Table {
+      table_name: gen_ident(g),
+      alias: if bool::arbitrary(g) {
+        None
+      } else {
+        Some(gen_ident(g))
+      },
+    }
+  }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Query {
@@ -28,7 +93,12 @@ impl fmt::Display for Query {
       f,
       "SELECT {}\nFROM {}\nWHERE {}",
       self.selection,
-      self.tables.join(", "),
+      self
+        .tables
+        .iter()
+        .map(|t| format!("{}", t))
+        .collect::<Vec<_>>()
+        .join(", "),
       self.filter
     )
   }
@@ -36,25 +106,30 @@ impl fmt::Display for Query {
 
 impl Arbitrary for Query {
   fn arbitrary(g: &mut Gen) -> Self {
-    Query::new(
-      Selection::arbitrary(g),
-      Vec::arbitrary(g),
-      Filter::arbitrary(g),
-    )
+    let mut v = Vec::arbitrary(g);
+    v.push(Table::arbitrary(g));
+    Query::new(Selection::arbitrary(g), v, Filter::arbitrary(g))
   }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Selection {
   Star,
-  Columns(Vec<Ident>),
+  Columns(Vec<ColumnSelector>),
 }
 
 impl fmt::Display for Selection {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       Selection::Star => write!(f, "*"),
-      Selection::Columns(ts) => write!(f, "{}", ts.join(", ")),
+      Selection::Columns(ts) => write!(
+        f,
+        "{}",
+        ts.iter()
+          .map(|t| format!("{}", t))
+          .collect::<Vec<_>>()
+          .join(", "),
+      ),
     }
   }
 }
@@ -64,7 +139,9 @@ impl Arbitrary for Selection {
     if bool::arbitrary(g) {
       Selection::Star
     } else {
-      Selection::Columns(Vec::arbitrary(g))
+      let mut v = Vec::arbitrary(g);
+      v.push(ColumnSelector::arbitrary(g));
+      Selection::Columns(v)
     }
   }
 }
@@ -132,7 +209,7 @@ impl Arbitrary for BinaryOp {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Filter {
-  Id(Ident),
+  Id(ColumnSelector),
   LitS(String),
   LitB(bool),
   LitI(i64),
@@ -185,7 +262,7 @@ fn gen_string_lit(g: &mut Gen) -> String {
 
 fn gen_lit(g: &mut Gen) -> Filter {
   match g.choose(&[0, 1, 2, 3]).unwrap() {
-    0 => Filter::Id(gen_ident(g)),
+    0 => Filter::Id(ColumnSelector::arbitrary(g)),
     1 => Filter::LitS(gen_string_lit(g)),
     // TODO: Known issue, our parser doesn't handle huge things well
     2 => Filter::LitI(i32::arbitrary(g) as i64),
