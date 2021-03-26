@@ -82,7 +82,7 @@ fn factor(input: &str) -> Res<&str, Filter> {
       map(p_int, Filter::LitI),
       map(p_bool, Filter::LitB),
       map(p_string, Filter::LitS),
-      map(ident, Filter::Id),
+      map(column_selector, Filter::Id),
     )),
   )(input)
 }
@@ -130,13 +130,54 @@ fn expression(input: &str) -> Res<&str, Filter> {
   )(input)
 }
 
+fn column_selector(input: &str) -> Res<&str, ColumnSelector> {
+  context(
+    "column_selector",
+    alt((
+      map(tuple((terminated(ident, tag(".")), ident)), |(x, y)| {
+        ColumnSelector {
+          table: Some(x),
+          field: y,
+        }
+      }),
+      map(ident, |x| ColumnSelector {
+        table: None,
+        field: x,
+      }),
+    )),
+  )(input)
+}
+
 fn selection(input: &str) -> Res<&str, Selection> {
   context(
     "selection",
     alt((
       map(tag("*"), |_| Selection::Star),
-      map(separated_list1(terminated(tag(","), space0), ident), |xs| {
-        Selection::Columns(xs)
+      map(
+        separated_list1(terminated(tag(","), space0), column_selector),
+        Selection::Columns,
+      ),
+    )),
+  )(input)
+}
+
+fn table(input: &str) -> Res<&str, Table> {
+  context(
+    "table",
+    alt((
+      map(
+        tuple((
+          terminated(ident, delimited(space0, tag_no_case("AS"), space0)),
+          ident,
+        )),
+        |(x, y)| Table {
+          table_name: x,
+          alias: Some(y),
+        },
+      ),
+      map(ident, |x| Table {
+        table_name: x,
+        alias: None,
       }),
     )),
   )(input)
@@ -149,7 +190,7 @@ fn query(input: &str) -> Res<&str, Query> {
   let (input, _) = multispace1(input)?;
   let (input, _) = tag_no_case("FROM")(input)?;
   let (input, _) = multispace1(input)?;
-  let (input, t) = separated_list1(terminated(tag(","), space0), ident)(input)?;
+  let (input, t) = separated_list1(terminated(tag(","), space0), table)(input)?;
   let (input, _) = multispace1(input)?;
   let (input, _) = tag_no_case("WHERE")(input)?;
   let (input, _) = space1(input)?;
@@ -164,8 +205,8 @@ mod tests {
   use super::*;
 
   #[quickcheck]
-  fn prop_round_trip(f: Filter) -> bool {
-    f == expression(&format!("{}", f)).unwrap().1
+  fn prop_round_trip(f: Query) -> bool {
+    f == query(&format!("{}", f)).unwrap().1
   }
 
   #[test]
@@ -181,11 +222,26 @@ mod tests {
       Ok((
         "",
         Query::new(
-          Selection::Columns(vec!["name".to_owned(), "id".to_owned()]),
-          vec!["users".to_owned()],
+          Selection::Columns(vec![
+            ColumnSelector {
+              table: None,
+              field: "name".to_owned()
+            },
+            ColumnSelector {
+              table: None,
+              field: "id".to_owned()
+            },
+          ]),
+          vec![Table {
+            table_name: "users".to_owned(),
+            alias: None
+          }],
           Filter::BinaryOp(
             BinaryOp::Eq,
-            Box::new(Filter::Id("name".to_owned())),
+            Box::new(Filter::Id(ColumnSelector {
+              table: None,
+              field: "name".to_owned()
+            })),
             Box::new(Filter::LitS("Harry".to_owned()))
           )
         )
@@ -203,9 +259,15 @@ mod tests {
           BinaryOp::And,
           Box::new(Filter::UnaryOp(
             UnaryOp::Not,
-            Box::new(Filter::Id("x".to_owned()))
+            Box::new(Filter::Id(ColumnSelector {
+              table: None,
+              field: "x".to_owned()
+            }))
           )),
-          Box::new(Filter::Id("y".to_owned()))
+          Box::new(Filter::Id(ColumnSelector {
+            table: None,
+            field: "y".to_owned()
+          }))
         )
       ))
     );
@@ -213,9 +275,18 @@ mod tests {
 
   #[test]
   fn filter_and_or() {
-    let x = Filter::Id("x".to_owned());
-    let y = Filter::Id("y".to_owned());
-    let z = Filter::Id("z".to_owned());
+    let x = Filter::Id(ColumnSelector {
+      table: None,
+      field: "x".to_owned(),
+    });
+    let y = Filter::Id(ColumnSelector {
+      table: None,
+      field: "y".to_owned(),
+    });
+    let z = Filter::Id(ColumnSelector {
+      table: None,
+      field: "z".to_owned(),
+    });
 
     assert_eq!(
       expression("x||y"),
