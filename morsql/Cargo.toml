@@ -9,6 +9,7 @@ version = "0.1.0"
 [dependencies]
 nom = "6.0"
 quickcheck = "1.0"
+regex = "1"
 
 [dev-dependencies]
 quickcheck_macros = "1.0"

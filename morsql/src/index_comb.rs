@@ -3,13 +3,13 @@
 
 #[derive(Debug)]
 pub struct IndexCombinations{
-    pub bounds : Vec<i64>,
-    pub indices : Vec<i64>,
+    pub bounds : Vec<usize>,
+    pub indices : Vec<usize>,
     pub started : bool
 }
 
 
-pub fn given_bounds(bounds : Vec<i64>) -> IndexCombinations {
+pub fn given_bounds(bounds : Vec<usize>) -> IndexCombinations {
     let mut indices = Vec::with_capacity(bounds.len());
     for _i in 0..(bounds.len()){
         indices.push(0);
@@ -23,9 +23,9 @@ pub fn given_bounds(bounds : Vec<i64>) -> IndexCombinations {
 
 
 impl Iterator for IndexCombinations{
-    type Item = Vec<i64>;
+    type Item = Vec<usize>;
     //treats the list of indices like a number whose least significant digit is at index 0
-    fn next(&mut self) -> Option<Vec<i64>>{
+    fn next(&mut self) -> Option<Vec<usize>>{
         if !self.started {
             self.started = true;
             return Some (self.indices.to_vec());
