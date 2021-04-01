@@ -30,6 +30,7 @@ pub struct ColumnSelector {
   pub field: Ident,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IndexedColumnSelector {
   pub table : usize,
   pub field : usize

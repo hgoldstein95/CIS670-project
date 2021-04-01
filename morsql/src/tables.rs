@@ -75,12 +75,7 @@ impl TableData {
             } else{
                 let cells = cell_strings.iter().map(|cell|{
                     match re.captures_iter(cell).nth(0) {
-                        None => {
-                            match cell.parse::<i64>()  {
-                                Ok(n) => Some(TableCell::CellInt(n)),
-                                Err(_) => None
-                            }
-                        },
+                        None => cell.parse::<i64>().ok().map(|n| TableCell::CellInt(n)),
                         Some(_) => Some (TableCell::CellString(cell[1..cell.len() - 1].to_string()))
                     }
                 }).collect();
@@ -139,6 +134,45 @@ mod tests {
         curr_dir.push(Path::new("examples/test1.csv"));
         let filetable = TableData::of_file(File::open(curr_dir).unwrap()).unwrap();
         assert_eq!(testtable, filetable);
+    }
+
+    #[test]
+    fn to_indexed_test(){
+        let test_sel1 = ColumnSelector {
+            table : Some ("t1".to_string()),
+            field : "f1".to_string()
+        };
+        let test_sel2 = ColumnSelector {
+            table : Some ("t2".to_string()),
+            field : "f2".to_string()
+        };
+        let test_sel3 = ColumnSelector {
+            table : None,
+            field : "f1".to_string()
+        };
+        let test_sel4 = ColumnSelector {
+            table : None,
+            field : "f0".to_string()
+        };
+
+        let test_table1 = TableData{
+            header : vec!["f1".to_string(), "f2".to_string()],
+            rows : vec![]
+        };
+        let test_table2 = TableData{
+            header : vec!["f2".to_string(), "f1".to_string()],
+            rows : vec![]
+        };
+        let test_tables1 = vec![test_table1.clone(), test_table2.clone()];
+        let test_tables2 = vec![test_table1.clone()];
+        let test_index1 = test_sel1.to_indexed(&test_tables1, &vec!["t1".to_string(), "t2".to_string()]);
+        let test_index2 = test_sel2.to_indexed(&test_tables1, &vec!["t1".to_string(), "t2".to_string()]);
+        let test_index3 = test_sel3.to_indexed(&test_tables2, &vec!["t1".to_string()]);
+        let test_index4 = test_sel4.to_indexed(&test_tables1, &vec!["t1".to_string(), "t2".to_string()]);
+        assert_eq!(test_index1,Ok(IndexedColumnSelector{table : 0, field : 0}));
+        assert_eq!(test_index2,Ok(IndexedColumnSelector{table : 1, field : 0}));
+        assert_eq!(test_index3, Ok(IndexedColumnSelector{table : 0, field : 0}));
+        assert_eq!(true, matches!(test_index4, Err(s)));
     }
 
     #[test]
