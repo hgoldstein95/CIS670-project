@@ -31,6 +31,16 @@ pub struct ColumnSelector {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub enum IndexedFilter {
+  Id(IndexedColumnSelector),
+  LitS(String),
+  LitB(bool),
+  LitI(i64),
+  UnaryOp(UnaryOp, Box<IndexedFilter>),
+  BinaryOp(BinaryOp, Box<IndexedFilter>, Box<IndexedFilter>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IndexedColumnSelector {
   pub table : usize,
   pub field : usize
@@ -53,6 +63,13 @@ pub struct Query {
   pub selection: Selection,
   pub tables: Vec<Table>,
   pub filter: Filter,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IndexedQuery {
+  pub selection: Selection,
+  pub tables: Vec<Table>,
+  pub filter: IndexedFilter,
 }
 
 mod display {

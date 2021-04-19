@@ -53,6 +53,41 @@ impl ColumnSelector {
     }
 }
 
+impl Filter {
+    pub fn to_indexed(&self, tables : &Vec<TableData>, names : &Vec<String>) -> Result<IndexedFilter, String>{
+        match self {
+            Filter::Id(id) => {
+                let indexed_id : IndexedColumnSelector = id.to_indexed(tables,names)?;
+                return Ok(IndexedFilter::Id(indexed_id));
+            },
+            Filter::UnaryOp(uop, filter) => {
+                let indexed_filter : IndexedFilter = filter.to_indexed(tables,names)?;
+                return Ok(IndexedFilter::UnaryOp(*uop, Box::new(indexed_filter)));
+            },
+            Filter::BinaryOp(bop, filterl, filterr) => {
+                let indexed_filterl = filterl.to_indexed(tables,names)?;
+                let indexed_filterr = filterr.to_indexed(tables,names)?;
+                return Ok(IndexedFilter::BinaryOp(*bop, Box::new(indexed_filterl), Box::new(indexed_filterr)));
+            }
+
+            Filter::LitB(b) => return Ok(IndexedFilter::LitB(*b)),
+            Filter::LitS(s) => return Ok(IndexedFilter::LitS(s.clone())),
+            Filter::LitI(i) => return Ok(IndexedFilter::LitI(*i))
+        }
+    }
+}
+
+impl Query {
+    pub fn to_indexed(self, tables : &Vec<TableData>, names : &Vec<String>) -> Result<IndexedQuery, String>{
+        let indexed_filter = self.filter.to_indexed(tables,names)?;
+        return Ok (IndexedQuery{
+            filter : indexed_filter,
+            tables : self.tables,
+            selection : self.selection
+        })
+    }
+}
+
 impl TableData {
     pub fn of_file(file : File) -> Result<Self, Error>{
         let mut header : Option<Vec<String>> = None;
