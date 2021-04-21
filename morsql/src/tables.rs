@@ -156,10 +156,8 @@ impl IndexedFilter {
 impl IndexedQuery {
 
     pub fn run(&self, tables : &Vec<TableData>) -> Result<TableData,String>{
-        let filter = self.filter;
-        let selection = self.selection;
-        let row_fn = |row| {return filter.valid_row(row)};
-        let full_table = TableData::join_table(&row_fn, tables);
+        //let selection = self.selection;
+        let full_table = TableData::join_table(&|row| {return self.filter.valid_row(row)}, tables);
         return Err("".to_string());
         
     }
@@ -308,7 +306,7 @@ mod tests {
             rows : vec![row21.clone(), row22.clone(), row23.clone()]
         };
 
-        let res_table1 = TableData::join_table( |vec| vec[0][1] == vec[1][1] , &(vec![testtable1.clone(), testtable2.clone()]));
+        let res_table1 = TableData::join_table( &|vec| vec[0][1] == vec[1][1] , &(vec![testtable1.clone(), testtable2.clone()]));
         assert_eq!(res_table1.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table1.rows.len(), 3);
         //check rows
@@ -316,7 +314,7 @@ mod tests {
         assert_ne!(res_table1.rows.iter().find(| row | **row == vec![row12.clone(), row22.clone()].concat()), None );
         assert_ne!(res_table1.rows.iter().find(| row | **row == vec![row13.clone(), row23.clone()].concat()), None );
         assert_eq!(res_table1.rows.iter().find(| row | **row == vec![row11.clone(), row22.clone()].concat()), None );
-        let res_table2 = TableData::join_table( |vec| true , &(vec![testtable1.clone(), testtable2.clone()])); 
+        let res_table2 = TableData::join_table( &|vec| true , &(vec![testtable1.clone(), testtable2.clone()])); 
         assert_eq!(res_table2.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table2.rows.len(),9);
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row11.clone(), row21.clone()].concat()), None );
@@ -331,7 +329,7 @@ mod tests {
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row12.clone(), row23.clone()].concat()), None );
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row13.clone(), row23.clone()].concat()), None );
         //the tables appear to be right
-        let res_table3 = TableData::join_table( |vec| false , &(vec![testtable1.clone(), testtable2.clone()])); 
+        let res_table3 = TableData::join_table( &|vec| false , &(vec![testtable1.clone(), testtable2.clone()])); 
         assert_eq!(res_table3.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table3.rows.len(),0);
     }
