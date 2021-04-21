@@ -107,6 +107,7 @@ dependencies = [
  "nom",
  "quickcheck",
  "quickcheck_macros",
+ "regex",
 ]
 
 [[package]]
