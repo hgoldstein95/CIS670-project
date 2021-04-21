@@ -16,6 +16,12 @@ pub enum TableCell{
     CellString(String)
 }
 
+macro_rules! tc_bool {
+    ($a : expr) => {
+        Some(TableCell::CellInt( if $a {1} else {0}))
+    };
+}
+
 #[derive(Debug,PartialEq, Eq, Clone)]
 pub struct TableData{
     pub header : Vec<String>,
@@ -86,6 +92,77 @@ impl Query {
             selection : self.selection
         })
     }
+
+}
+
+impl IndexedFilter {
+    fn compute_with_row_uop(&self, row : &Vec<Vec<Option<TableCell>>>, uop : UnaryOp) -> Option<TableCell> {
+        match uop {
+            UnaryOp::Not => self.compute_with_row(row).and_then(|tc|{
+                match tc {
+                    TableCell::CellInt(i) => return tc_bool!(i == 0)
+                    ,
+                    TableCell::CellString(s) => return None
+                } 
+            })
+        }
+    }
+
+    pub fn compute_with_row_bop(&self, row : &Vec<Vec<Option<TableCell>>>, bop : BinaryOp, 
+                filterl : &IndexedFilter, filterr : &IndexedFilter) -> Option<TableCell> {
+        return filterl.compute_with_row(row).and_then(|tcl|{ filterr.compute_with_row(row).and_then(|tcr| {
+            match bop {
+                BinaryOp::And => {
+                    return tc_bool!( matches!((tcl, tcr), (TableCell::CellInt(l), TableCell::CellInt(r)) if l != 0 && r != 0 ))
+                },
+                BinaryOp::Or => {
+                    return tc_bool!(matches!(tcl, TableCell::CellInt(l) if l != 0) || matches!(tcr, TableCell::CellInt(r) if r != 0)) 
+                },
+                BinaryOp::Lt => {
+                    return tc_bool!(matches!((tcl, tcr), (TableCell::CellInt(l), TableCell::CellInt(r)) if l < r ))
+                },
+                BinaryOp::Eq => 
+                    return tc_bool!(matches!((&tcl, &tcr), (TableCell::CellInt(l), TableCell::CellInt(r)) if l == r) || 
+                                    matches!((tcl, tcr), (TableCell::CellString(l),TableCell::CellString(r)) if l == r )),
+                _ => return tc_bool!(false)
+                
+
+                }
+            }
+        ) 
+        }
+        ) 
+        
+        }    
+
+    pub fn compute_with_row(&self, row : &Vec<Vec<Option<TableCell>>>) -> Option<TableCell> {
+        match self  {
+            IndexedFilter::Id(ind) => return row[ind.table][ind.field].clone(),
+            IndexedFilter::LitB(b) => return tc_bool!(*b),
+            IndexedFilter::LitI(i) => return Some(TableCell::CellInt(*i)),
+            IndexedFilter::LitS(s) => return Some(TableCell::CellString(s.clone())),
+            IndexedFilter::UnaryOp(uop, filter) => filter.compute_with_row_uop(row,*uop),
+            IndexedFilter::BinaryOp(bop, filterl, filterr)  => self.compute_with_row_bop(row, *bop, filterl, filterr)
+
+        }
+    }
+
+    pub fn valid_row(&self, row : &Vec<Vec<Option<TableCell>>>) -> bool{
+        let tc_opt = self.compute_with_row(row);
+        return matches!(tc_opt, Some(TableCell::CellInt(i)) if i != 0);
+    }
+}
+
+impl IndexedQuery {
+
+    pub fn run(&self, tables : &Vec<TableData>) -> Result<TableData,String>{
+        let filter = self.filter;
+        let selection = self.selection;
+        let row_fn = |row| {return filter.valid_row(row)};
+        let full_table = TableData::join_table(&row_fn, tables);
+        return Err("".to_string());
+        
+    }
 }
 
 impl TableData {
@@ -125,7 +202,9 @@ impl TableData {
     }
 
     //can turn a lot of these vectors into slices if I care about efficiency (which I propaply don't)
-    pub fn join_table(valid_row : fn(&Vec<Vec<Option<TableCell>>>) -> bool, tables : &Vec<TableData>) -> TableData{
+    pub fn join_table<'a,F>(valid_row :&'a F, tables : &Vec<TableData>) -> TableData
+    where F : Fn(&Vec<Vec<Option<TableCell>>>) -> bool
+    {
         let n_tables = tables.len();
         let table_contents : Vec<_> = tables.iter().map(|table| &table.rows).collect();
         let table_headers : Vec<_>= tables.iter().map(|table| table.header.clone()).collect();
