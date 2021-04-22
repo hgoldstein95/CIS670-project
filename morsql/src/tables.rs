@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use regex::Regex;
 use std::fs::File;
 use std::io::Error;
+use either::Either;
 
 
 
@@ -86,11 +87,31 @@ impl Filter {
 impl Query {
     pub fn to_indexed(self, tables : &Vec<TableData>, names : &Vec<String>) -> Result<IndexedQuery, String>{
         let indexed_filter = self.filter.to_indexed(tables,names)?;
+        let indexed_selection : Result<IndexedSelection,String>;
+         match self.selection {
+            Selection::Star => indexed_selection = Ok(IndexedSelection::Star),
+            Selection::Columns(v) =>{ 
+                let cols : Result<Vec<_>,_> = v.iter().map(|col| {col.to_indexed(tables,names)   }).collect(); 
+                indexed_selection = Ok(IndexedSelection::Columns(cols?));
+        } 
+        }
         return Ok (IndexedQuery{
             filter : indexed_filter,
             tables : self.tables,
-            selection : self.selection
+            selection : indexed_selection?
         })
+    }
+
+    pub fn run(self, tables : &Vec<TableData>, names : &Vec<String>) -> Result<TableData, String>{
+        let query : IndexedQuery = self.to_indexed(tables,names)?;
+        return query.run(tables);
+    }
+
+    pub fn run_from_files(self, files : &Vec<File>, names : &Vec<String>) -> Result<TableData, Either<Error,String>>{
+        let tables_res : Result<Vec<TableData>, Either<Error,String>> = files.iter().map(|f| {TableData::of_file(f).map_err(|err| Either::Left(err))})
+            .collect();
+        let tables = tables_res?;
+        return self.run(&tables, &names).map_err(|err| Either::Right(err) );
     }
 
 }
@@ -156,15 +177,42 @@ impl IndexedFilter {
 impl IndexedQuery {
 
     pub fn run(&self, tables : &Vec<TableData>) -> Result<TableData,String>{
-        //let selection = self.selection;
-        let full_table = TableData::join_table(&|row| {return self.filter.valid_row(row)}, tables);
-        return Err("".to_string());
-        
+        return Ok(TableData::join_table(&|row| {return self.filter.valid_row(row)}, tables, &self.selection));         
+    }
+}
+
+impl IndexedSelection {
+    pub fn to_row(&self, row_vec : &Vec<Vec<Option<TableCell>>>) -> Vec<Option<TableCell>> {
+        match self {
+            IndexedSelection::Star => return row_vec.concat(),
+            IndexedSelection::Columns(cols) => {
+                let mut new_row = Vec::new();
+                for col_sel in cols {
+                    new_row.push(row_vec[col_sel.table][col_sel.field].clone());
+                }
+                return new_row;
+            }
+
+        }
+    }
+    
+    pub fn new_header(&self, old_header : Vec<Vec<String>>) -> Vec<String>{
+        match self {
+            IndexedSelection::Star => return old_header.concat(),
+            IndexedSelection::Columns(cols) => {
+                let mut new_header = Vec::new();
+                for col_sel in cols {
+                    new_header.push(old_header[col_sel.table][col_sel.field].clone());
+                }
+                return new_header;
+            }
+        }
+
     }
 }
 
 impl TableData {
-    pub fn of_file(file : File) -> Result<Self, Error>{
+    pub fn of_file(file : &File) -> Result<Self, Error>{
         let mut header : Option<Vec<String>> = None;
         let mut rows : Vec<Vec<Option<TableCell>>> = Vec::new();
         let re = Regex::new("\".*\"").unwrap();
@@ -199,15 +247,16 @@ impl TableData {
         
     }
 
-    //can turn a lot of these vectors into slices if I care about efficiency (which I propaply don't)
-    pub fn join_table<'a,F>(valid_row :&'a F, tables : &Vec<TableData>) -> TableData
+    //maybe refactor into function that takes a filter and a row
+    pub fn join_table<F>(valid_row :&F, tables : &Vec<TableData>, sel : &IndexedSelection) -> TableData
     where F : Fn(&Vec<Vec<Option<TableCell>>>) -> bool
     {
         let n_tables = tables.len();
         let table_contents : Vec<_> = tables.iter().map(|table| &table.rows).collect();
         let table_headers : Vec<_>= tables.iter().map(|table| table.header.clone()).collect();
         let bounds : Vec<usize> = table_contents.iter().map(|table| table.len()).collect();
-        let new_header : Vec<String> = table_headers.concat();
+        //fix the header 
+        let new_header : Vec<String> = sel.new_header(table_headers);
         let mut new_rows : Vec<Vec<Option<TableCell>>> = Vec::with_capacity(n_tables);
         for indices in given_bounds(bounds){
             let mut current_proposed_row : Vec<Vec<Option<TableCell>>> = Vec::with_capacity(n_tables);
@@ -215,7 +264,9 @@ impl TableData {
                 current_proposed_row.push(table_contents[table_index][*row_index].clone());
             }
             if valid_row(&current_proposed_row){
-                let new_row = current_proposed_row.concat();
+                //replace this concatenation with new selection stuff
+                // indexedselection -> Vec<Vec<Option<TableCell>>> -> Vec<Option<TableCell>>
+                let new_row = sel.to_row(&current_proposed_row);
                 new_rows.push(new_row);
             }
         }
@@ -244,7 +295,7 @@ mod tests {
 
         let mut curr_dir = current_dir().unwrap();
         curr_dir.push(Path::new("examples/test1.csv"));
-        let filetable = TableData::of_file(File::open(curr_dir).unwrap()).unwrap();
+        let filetable = TableData::of_file(&File::open(curr_dir).unwrap()).unwrap();
         assert_eq!(testtable, filetable);
     }
 
@@ -306,7 +357,7 @@ mod tests {
             rows : vec![row21.clone(), row22.clone(), row23.clone()]
         };
 
-        let res_table1 = TableData::join_table( &|vec| vec[0][1] == vec[1][1] , &(vec![testtable1.clone(), testtable2.clone()]));
+        let res_table1 = TableData::join_table( &|vec| vec[0][1] == vec[1][1] , &(vec![testtable1.clone(), testtable2.clone()]),&IndexedSelection::Star);
         assert_eq!(res_table1.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table1.rows.len(), 3);
         //check rows
@@ -314,7 +365,7 @@ mod tests {
         assert_ne!(res_table1.rows.iter().find(| row | **row == vec![row12.clone(), row22.clone()].concat()), None );
         assert_ne!(res_table1.rows.iter().find(| row | **row == vec![row13.clone(), row23.clone()].concat()), None );
         assert_eq!(res_table1.rows.iter().find(| row | **row == vec![row11.clone(), row22.clone()].concat()), None );
-        let res_table2 = TableData::join_table( &|vec| true , &(vec![testtable1.clone(), testtable2.clone()])); 
+        let res_table2 = TableData::join_table( &|vec| true , &(vec![testtable1.clone(), testtable2.clone()]),&IndexedSelection::Star); 
         assert_eq!(res_table2.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table2.rows.len(),9);
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row11.clone(), row21.clone()].concat()), None );
@@ -329,7 +380,7 @@ mod tests {
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row12.clone(), row23.clone()].concat()), None );
         assert_ne!(res_table2.rows.iter().find(| row | **row == vec![row13.clone(), row23.clone()].concat()), None );
         //the tables appear to be right
-        let res_table3 = TableData::join_table( &|vec| false , &(vec![testtable1.clone(), testtable2.clone()])); 
+        let res_table3 = TableData::join_table( &|vec| false , &(vec![testtable1.clone(), testtable2.clone()]), &IndexedSelection::Star); 
         assert_eq!(res_table3.header, vec![test_header1.clone(), test_header2.clone()].concat());
         assert_eq!(res_table3.rows.len(),0);
     }

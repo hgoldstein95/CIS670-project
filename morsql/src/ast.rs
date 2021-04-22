@@ -53,6 +53,12 @@ pub enum Selection {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub enum IndexedSelection {
+  Star,
+  Columns(Vec<IndexedColumnSelector>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Table {
   pub table_name: Ident,
   pub alias: Option<Ident>,
@@ -67,7 +73,7 @@ pub struct Query {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct IndexedQuery {
-  pub selection: Selection,
+  pub selection: IndexedSelection,
   pub tables: Vec<Table>,
   pub filter: IndexedFilter,
 }
