@@ -8,6 +8,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::Error;
 use either::Either;
+use std::fmt;
 
 
 
@@ -29,6 +30,26 @@ pub struct TableData{
     pub rows : Vec<Vec<Option<TableCell>>>
 }
 
+impl fmt::Display for TableCell {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TableCell::CellInt(i) => write!(f, "{}", i),
+            TableCell::CellString(s) => write!(f, "\"{}\"", s),
+        }
+    }
+}
+
+impl fmt::Display for TableData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let data = self.rows.iter().map(|r| r.iter().map(|c| {
+            match c {
+                Some(x) => format!("{}", x),
+                None => "".to_string(),
+            }
+        }).collect::<Vec<_>>().join(",")).collect::<Vec<_>>().join("\n");
+        write!(f, "{}\n{}", self.header.join(","), data)
+    }
+}
 
 
 impl ColumnSelector {
@@ -107,11 +128,11 @@ impl Query {
         return query.run(tables);
     }
 
-    pub fn run_from_files(self, files : &Vec<File>, names : &Vec<String>) -> Result<TableData, Either<Error,String>>{
+    pub fn run_from_files(self, files : &Vec<File>, names : &Vec<String>) -> Result<TableData, String>{
         let tables_res : Result<Vec<TableData>, Either<Error,String>> = files.iter().map(|f| {TableData::of_file(f).map_err(|err| Either::Left(err))})
             .collect();
-        let tables = tables_res?;
-        return self.run(&tables, &names).map_err(|err| Either::Right(err) );
+        let tables = tables_res.map_err(|e| e.to_string())?;
+        self.run(&tables, &names)
     }
 
 }
