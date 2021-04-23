@@ -1,3 +1,3 @@
-SELECT *
+SELECT user.name, id
 FROM user
-WHERE user.name == "Harry"
+WHERE user.name == ""
