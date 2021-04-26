@@ -315,7 +315,7 @@ mod tests {
         };
 
         let mut curr_dir = current_dir().unwrap();
-        curr_dir.push(Path::new("examples/test1.csv"));
+        curr_dir.push(Path::new("examples/read_csv_test.csv"));
         let filetable = TableData::of_file(&File::open(curr_dir).unwrap()).unwrap();
         assert_eq!(testtable, filetable);
     }
